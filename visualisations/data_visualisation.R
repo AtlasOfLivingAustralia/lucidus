@@ -12,6 +12,7 @@
   library(ggnewscale)
   library(ggthemes)
   library(highcharter)
+  library(htmltools)
   library(plotly)
   library(RColorBrewer)
   library(sf)
@@ -131,15 +132,19 @@ girafe(ggobj = int_map,
        ))
 
 ###### TREEMAP ######
-tree_data <- occ_summary |>
+tree_data <-  occ_summary |>
   group_by(kingdom, phylum, class, order) |>
-  summarise(size = sum(count), .groups = "drop") |>
-  mutate(size_sqrt = sqrt(size))
+  summarise(count = sum(count), .groups = "drop") |>
+  replace_na(list(kingdom = "[UNIDENTIFIED]", 
+                  phylum = "[UNIDENTIFIED]", 
+                  class = "[UNIDENTIFIED]", 
+                  order = "[UNIDENTIFIED]")
+  )
 
 taxonomy_tree <- treemap(
   tree_data,
   index = c("kingdom", "phylum", "class", "order"),
-  vSize = "size_sqrt",
+  vSize = "count",
   type = "index",
   title = "ALA Taxonomy",
   fontsize.labels = 15
@@ -149,7 +154,63 @@ d3tree3(taxonomy_tree,
         rootname = "Taxonomy",
         width = "100%")
 
-sund2b(data = d3_nest(tree_data, value_cols = "size"),
-       showLabels = TRUE)
+####### PLOTLY SUNBURST MAP #######
+# create data in plotly form
+sunburst_data <- rbind(
+  tree_data |>
+    mutate(id = paste(kingdom, phylum, class, order, " "),
+           parent = paste(kingdom, phylum, class, order),
+           names = "") |>
+    select(id, parent, names, count),
+  tree_data |>
+    mutate(id = paste(kingdom, phylum, class, order),
+           parent = paste(kingdom, phylum, class)) |>
+    rename(names = order) |>
+    select(id, parent, names, count),
+  tree_data |>
+    group_by(kingdom, phylum, class) |>
+    summarise(count = sum(count), .groups = "drop") |>
+    mutate(id = paste(kingdom, phylum, class),
+           parent = paste(kingdom, phylum)) |>
+    rename(names = class) |>
+    select(id, parent, names, count),
+  tree_data |>
+    group_by(kingdom, phylum) |>
+    summarise(count = sum(count), .groups = "drop") |>
+    mutate(id = paste(kingdom, phylum),
+           parent = kingdom) |>
+    rename(names = phylum) |>
+    select(id, parent, names, count),
+  tree_data |>
+    group_by(kingdom) |>
+    summarise(count = sum(count), .groups = "drop") |>
+    mutate(id = paste(kingdom),
+           parent = "") |>
+    rename(names = kingdom) |>
+    select(id, parent, names, count)
+  )
 
+sunburst_plotly <- plot_ly(
+  data = sunburst_data,
+  type = "sunburst",
+  ids = ~id,
+  labels = ~names,
+  parents = ~parent,
+  values = ~count,
+  branchvalues = "total",
+  maxdepth = 4
+)
 
+###### d2b SUNBURST ######
+sunburstR_data <- tree_data |>
+  mutate(categories = paste(kingdom, phylum, class, order, sep = "-")) |>
+  select(categories, count) |>
+  as.data.frame()
+
+sund2b(sunburstR_data,
+       valueField = "count",
+       showLabels = TRUE,
+       rootLabel = "RESET",
+       colors = htmlwidgets::JS(
+         "function(name, d){return d.color || '#ccc';}"
+       ))
