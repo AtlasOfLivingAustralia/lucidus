@@ -15,6 +15,7 @@
   library(htmltools)
   library(plotly)
   library(RColorBrewer)
+  library(scales)
   library(sf)
   library(shiny)
   library(sunburstR)
@@ -43,6 +44,8 @@ IMCRA_mesoscale <- st_read("raw-data/shapefiles/IMCRA_mesoscale/imcra4_meso.shp"
 
 regions <- rbind(IBRA_regions, IMCRA_mesoscale) |>
   st_as_sf(crs = st_crs(IBRA_regions))
+
+save(regions, file = "data/regions.RData")  
 
 ##### Visualisations #####
 ###### MAP ######
@@ -211,6 +214,26 @@ sund2b(sunburstR_data,
        valueField = "count",
        showLabels = TRUE,
        rootLabel = "RESET",
+       breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
        colors = htmlwidgets::JS(
          "function(name, d){return d.color || '#ccc';}"
        ))
+
+tm <- treemap(
+  tree_data,
+  index = c("kingdom", "phylum", "class", "order"),
+  vSize = "count",
+  draw = FALSE,
+  palette = "Set2"
+)$tm
+
+sund2b(
+  d3_nest(tm, value_cols = colnames(tm)[-(1:4)]),
+  colors = htmlwidgets::JS(
+    "function(name, d){return d.color || '#ccc';}"
+  ),
+  valueField = "vSize",
+  showLabels = TRUE,
+  rootLabel = "RESET",
+  breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
+)
