@@ -11,8 +11,10 @@
   library(ggiraph)
   library(ggnewscale)
   library(ggthemes)
+  library(glue)
   library(highcharter)
   library(htmltools)
+  library(numform)
   library(plotly)
   library(RColorBrewer)
   library(scales)
@@ -56,38 +58,6 @@ map_data <- occ_summary |>
   right_join(regions, by = c("IBRAIMCRA_region" = "region_name")) |>
   st_as_sf(crs = st_crs(regions))
 
-ggplot() + 
-  geom_sf(data = map_data |> filter(IBRA_IMCRA == "IMCRA"),
-          aes(fill = count),
-          colour = "gray30") +
-  scale_fill_distiller(name = "IMCRA",
-                       type = "seq",
-                       palette = "BuPu",
-                       direction = 1,
-                       trans = "sqrt",
-                       #labels = c(1, 50, 500, 5000, 50000),
-                       #labels = c("0.001", "0.01", "0.1", "1", "10"),
-                       guide = guide_colorsteps(direction = "horizontal",
-                                                label.position = "bottom",
-                                                title.position = "left")) +
-  # adds new colour scale
-  ggnewscale::new_scale_fill() +
-  geom_sf(data = map_data |> filter(IBRA_IMCRA == "IBRA"),
-          aes(fill = count),
-          colour = "gray10") +
-  scale_fill_distiller(name = "IBRA",
-                       type = "seq",
-                       palette = "YlOrBr",
-                       direction = 1,
-                       trans = "sqrt",
-                       #labels = c("0.1", "1", "10", "100"),
-                       guide = guide_colorsteps(direction = "horizontal",
-                                                label.position = "bottom",
-                                                title.position = "left")) +
-  #coord_sf(xlim = c(110, 155), ylim = c(-45, -10)) +
-  theme_void() +
-  theme(legend.position = "none")
-
 ####### Interactivity #######
 int_map <- ggplot() +
   geom_sf_interactive(data = map_data |> filter(IBRA_IMCRA == "IMCRA"),
@@ -97,13 +67,15 @@ int_map <- ggplot() +
   scale_fill_distiller(name = "IMCRA",
                        type = "seq",
                        palette = "PuBu",
+                       na.value = "grey97",
                        direction = 1,
                        trans = "sqrt",
+                       breaks = c(0, 2000, 8000, 18000, 32000, 50000),
                        #labels = c(1, 50, 500, 5000, 50000),
                        #labels = c("0.001", "0.01", "0.1", "1", "10"),
                        guide = guide_colorsteps(direction = "horizontal",
                                                 label.position = "bottom",
-                                                title.position = "left")) +
+                                                title.position = "top")) +
   # adds new colour scale
   ggnewscale::new_scale_fill() +
   geom_sf_interactive(data = map_data |> filter(IBRA_IMCRA == "IBRA"),
@@ -113,15 +85,23 @@ int_map <- ggplot() +
   scale_fill_distiller(name = "IBRA",
                        type = "seq",
                        palette = "YlOrBr",
+                       na.value = "grey97",
                        direction = 1,
                        trans = "sqrt",
+                       breaks = c(0, 40000, 160000, 360000, 640000, 1000000),
                        #labels = c("0.1", "1", "10", "100"),
                        guide = guide_colorsteps(direction = "horizontal",
                                                 label.position = "bottom",
-                                                title.position = "left")) +
+                                                title.position = "top")) +
   coord_sf(xlim = c(110, 155), ylim = c(-45, -10)) +
   theme_void() +
-  theme(legend.position = "none")
+  theme(legend.box = "vertical",
+        legend.position = c(0.3, 0.175),
+        legend.key.width = unit(12, "mm"),
+        legend.key.height = unit(3, "mm"),
+        legend.background = element_rect(fill = "transparent", colour = NA),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA))
 girafe(ggobj = int_map,
        options = list(
          opts_selection(css = "stroke-width:0.3;", 
@@ -134,28 +114,14 @@ girafe(ggobj = int_map,
          #opts_hover_inv(css = "opacity:0.3;")
        ))
 
-###### TREEMAP ######
-tree_data <-  occ_summary |>
+###### Hierarchical Taxa data ######
+tree_data <- occ_summary |>
   group_by(kingdom, phylum, class, order) |>
   summarise(count = sum(count), .groups = "drop") |>
-  replace_na(list(kingdom = "[UNIDENTIFIED]", 
-                  phylum = "[UNIDENTIFIED]", 
-                  class = "[UNIDENTIFIED]", 
-                  order = "[UNIDENTIFIED]")
-  )
-
-taxonomy_tree <- treemap(
-  tree_data,
-  index = c("kingdom", "phylum", "class", "order"),
-  vSize = "count",
-  type = "index",
-  title = "ALA Taxonomy",
-  fontsize.labels = 15
-)
-
-d3tree3(taxonomy_tree,
-        rootname = "Taxonomy",
-        width = "100%")
+  replace_na(list(kingdom = "[UNIDENTIFIED]",
+                  phylum = "[UNIDENTIFIED]",
+                  class = "[UNIDENTIFIED]",
+                  order = "[UNIDENTIFIED]"))
 
 ####### PLOTLY SUNBURST MAP #######
 # create data in plotly form
@@ -163,35 +129,59 @@ sunburst_data <- rbind(
   tree_data |>
     mutate(id = paste(kingdom, phylum, class, order, " "),
            parent = paste(kingdom, phylum, class, order),
-           names = "") |>
-    select(id, parent, names, count),
+           names = "",
+           color = "#FFFFFF") |>
+    select(id, parent, names, count, color),
   tree_data |>
     mutate(id = paste(kingdom, phylum, class, order),
            parent = paste(kingdom, phylum, class)) |>
+    left_join(taxa_colours |> select(-level), by = c("kingdom", "phylum", "class", "order")) |>
     rename(names = order) |>
-    select(id, parent, names, count),
+    select(id, parent, names, count, color),
   tree_data |>
     group_by(kingdom, phylum, class) |>
     summarise(count = sum(count), .groups = "drop") |>
     mutate(id = paste(kingdom, phylum, class),
-           parent = paste(kingdom, phylum)) |>
+           parent = paste(kingdom, phylum),
+           order = NA) |>
+    left_join(taxa_colours |> select(-level), by = c("kingdom", "phylum", "class", "order")) |>
     rename(names = class) |>
-    select(id, parent, names, count),
+    select(id, parent, names, count, color),
   tree_data |>
     group_by(kingdom, phylum) |>
     summarise(count = sum(count), .groups = "drop") |>
     mutate(id = paste(kingdom, phylum),
-           parent = kingdom) |>
+           parent = kingdom,
+           class = NA, order = NA) |>
+    left_join(taxa_colours |> select(-level), by = c("kingdom", "phylum", "class", "order")) |>
     rename(names = phylum) |>
-    select(id, parent, names, count),
+    select(id, parent, names, count, color),
   tree_data |>
     group_by(kingdom) |>
     summarise(count = sum(count), .groups = "drop") |>
     mutate(id = paste(kingdom),
-           parent = "") |>
+           parent = "TOTAL",
+           phylum = NA, class = NA, order = NA) |>
+    left_join(taxa_colours |> select(-level), by = c("kingdom", "phylum", "class", "order")) |>
     rename(names = kingdom) |>
-    select(id, parent, names, count)
-  )
+    select(id, parent, names, count, color),
+  tree_data |>
+    summarise(count = sum(count), .groups = "drop") |>
+    mutate(id = "TOTAL", parent = "", names = "TOTAL", color = "#FFFFFF") |>
+    select(id, parent, names, count, color)
+) |>
+  mutate(color = if_else(names == "[UNIDENTIFIED]", "#E5E5E5", color)) |>
+  distinct() |>
+  mutate(names = ifelse((grepl("\\[UNIDENTIFIED\\]$", parent) & names %in% c("", "[UNIDENTIFIED]")),
+                        "", names),
+         color = ifelse((grepl("\\[UNIDENTIFIED\\]$", parent) & names %in% c("", "[UNIDENTIFIED]")),
+                        "#FFFFFF", color),
+         count = ifelse((grepl("\\[UNIDENTIFIED\\]$", parent) & names %in% c("", "[UNIDENTIFIED]")),
+                        0, count)) |>
+  arrange(desc(id)) |>
+  mutate(hovertemplate = ifelse(names == "",
+                                NA,
+                                glue("{names}<br>{f_comma(count)}<extra></extra>")))
 
 sunburst_plotly <- plot_ly(
   data = sunburst_data,
@@ -201,37 +191,47 @@ sunburst_plotly <- plot_ly(
   parents = ~parent,
   values = ~count,
   branchvalues = "total",
-  maxdepth = 4
-)
+  maxdepth = 5,
+  insidetextorientation = "radial",
+  sort = FALSE,
+  rotation = 90,
+  hovertemplate = ~hovertemplate,
+  marker = list(colors = ~color)
+) |>
+  layout(colorway = ~color)
 
 ###### d2b SUNBURST ######
-sunburstR_data <- tree_data |>
+sunburstR_data1 <- tree_data |>
   mutate(categories = paste(kingdom, phylum, class, order, sep = "-")) |>
   select(categories, count) |>
   as.data.frame()
 
-sund2b(sunburstR_data,
-       valueField = "count",
-       showLabels = TRUE,
-       rootLabel = "RESET",
-       breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
-       colors = htmlwidgets::JS(
-         "function(name, d){return d.color || '#ccc';}"
-       ))
+sunburstR_data <- (occ_summary |>
+    group_by(kingdom, phylum, class, order) |>
+    summarise(count = sum(count), .groups = "drop") |>
+    treemap(
+      index = c("kingdom", "phylum", "class", "order"),
+      vSize = "count",
+      draw = FALSE,
+      palette = "Dark2"
+    ))$tm |>
+  arrange(kingdom, phylum, class, order)
 
-tm <- treemap(
-  tree_data,
-  index = c("kingdom", "phylum", "class", "order"),
-  vSize = "count",
-  draw = FALSE,
-  palette = "Set2"
-)$tm
+taxa_colours <- sunburstR_data |> 
+  select(kingdom, phylum, class, order, level, color)
+save(taxa_colours, file = "data/taxa_colours.RData")
+
+sunburstR_data <- sunburstR_data |>
+  select(-color) |>
+  left_join(taxa_colours, by = c("kingdom", "phylum", "class", "order", "level")) |>
+  d3_nest(value_cols = c("vSize", "vColor", "stdErr", "vColorValue", "level", "x0","y0", "w", "h", "color"))
 
 sund2b(
-  d3_nest(tm, value_cols = colnames(tm)[-(1:4)]),
-  colors = htmlwidgets::JS(
-    "function(name, d){return d.color || '#ccc';}"
-  ),
+  sunburstR_data,
+  colors = sunburstR_data1$color,
+  # colors = htmlwidgets::JS(
+  #   "function(name, d){return d.color || '#ccc';}"
+  # ),
   valueField = "vSize",
   showLabels = TRUE,
   rootLabel = "RESET",
