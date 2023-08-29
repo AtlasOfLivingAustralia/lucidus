@@ -221,40 +221,41 @@ server <- function(input, output, session) {
     max_IMCRA <- ifelse(all(is.na(IMCRA_counts)), 0, max(IMCRA_counts, na.rm = TRUE))
     IMCRA_limit <- max(ceiling(max_IMCRA / 10^(nchar(max_IMCRA) - 1)) * 10^(nchar(max_IMCRA) - 1), 5)
     IMCRA_scale <- seq(0, sqrt(IMCRA_limit), length.out = 6)^2
-    IMCRA_labels <- f_denom(IMCRA_scale, mix_denom = TRUE)
-    print(IMCRA_labels)
+    IMCRA_labels <- label_number(accuracy = 0.1, scale_cut = cut_short_scale())(IMCRA_scale) %>%
+                      {gsub("\\.0", "", .)}
     # IBRA scale
     IBRA_counts <- ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA") |> pull(count)
     max_IBRA <- ifelse(all(is.na(IBRA_counts)), 0, max(IBRA_counts, na.rm = TRUE))
     IBRA_limit <- max(ceiling(max_IBRA / 10^(nchar(max_IBRA) - 1)) * 10^(nchar(max_IBRA) - 1), 5)
     IBRA_scale <- seq(0, sqrt(IBRA_limit), length.out = 6)^2
-    IBRA_labels <- f_denom(IBRA_scale, mix_denom = TRUE)
-    print(IBRA_labels)
+    IBRA_labels <- label_number(accuracy = 0.1, scale_cut = cut_short_scale())(IBRA_scale) %>%
+                    {gsub("\\.0", "", .)}
     # plot
     int_map <- ggplot() +
       {if (max_IMCRA > 0) {
         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
                             aes(fill = count,
                                 tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
-                            colour = "gray30")
-        } else {
-          geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
-                              aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
-                              fill = "grey90", colour = "gray30")
+                            colour = "grey30")
+         } else {
+           geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
+                               aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                               fill = "grey95", colour = "grey30")
         }} +
       {if (max_IMCRA > 0) {
         scale_fill_distiller(name = "IMCRA",
                              type = "seq",
                              palette = "PuBu",
-                             na.value = "grey90",
+                             na.value = "grey95",
                              direction = 1,
                              trans = "sqrt",
                              limits = c(IMCRA_scale[1], IMCRA_scale[6]),
                              breaks = IMCRA_scale,
-                             #labels = IMCRA_labels,
+                             labels = IMCRA_labels,
                              guide = guide_colorsteps(direction = "horizontal",
                                                       label.position = "bottom",
-                                                      title.position = "top"))
+                                                      title.position = "top",
+                                                      order = 2))
       }} +
       # adds new colour scale
       {if (max_IMCRA > 0 & max_IBRA > 0) ggnewscale::new_scale_fill()} +
@@ -262,11 +263,11 @@ server <- function(input, output, session) {
         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
                             aes(fill = count,
                                 tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
-                            colour = "gray10")
-      } else {
-        geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
-                            aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
-                            fill = "gray90", colour = "gray10")
+                            colour = "grey10")
+       } else {
+         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
+                             aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                             fill = "grey90", colour = "grey10")
       }} +
       {if (max_IBRA > 0) {
         scale_fill_distiller(name = "IBRA",
@@ -277,10 +278,11 @@ server <- function(input, output, session) {
                              trans = "sqrt",
                              limits = c(IBRA_scale[1], IBRA_scale[6]),
                              breaks = IBRA_scale,
-                             #labels = IBRA_labels,
+                             labels = IBRA_labels,
                              guide = guide_colorsteps(direction = "horizontal",
                                                       label.position = "bottom",
-                                                      title.position = "top"))
+                                                      title.position = "top",
+                                                      order = 1))
       }} +
       coord_sf(xlim = c(110, 155), ylim = c(-45, -10)) +
       theme_void() +

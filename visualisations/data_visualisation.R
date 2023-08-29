@@ -29,25 +29,8 @@
 
 # occurrence data summarised
 load("data/occ_summary.RData")
-
-# Location Data
-IBRA_regions <- st_read("raw-data/shapefiles/IBRA7_regions/ibra7_regions.shp") |>
-  st_make_valid() |>
-  st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>
-  select(REG_CODE_7, REG_NAME_7) |>
-  rename(region_code = REG_CODE_7, region_name = REG_NAME_7) |>
-  mutate(IBRA_IMCRA = "IBRA")
-IMCRA_mesoscale <- st_read("raw-data/shapefiles/IMCRA_mesoscale/imcra4_meso.shp") |>
-  st_make_valid() |>
-  st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>
-  select(MESO_ABBR, MESO_NAME) |>
-  rename(region_code = MESO_ABBR, region_name = MESO_NAME) |>
-  mutate(IBRA_IMCRA = "IMCRA")
-
-regions <- rbind(IBRA_regions, IMCRA_mesoscale) |>
-  st_as_sf(crs = st_crs(IBRA_regions))
-
-save(regions, file = "data/regions.RData")  
+load("data/regions.RData")
+load("data/taxa_colours.RData")
 
 ##### Visualisations #####
 ###### MAP ######
@@ -217,10 +200,6 @@ sunburstR_data <- (occ_summary |>
     ))$tm |>
   arrange(kingdom, phylum, class, order)
 
-taxa_colours <- sunburstR_data |> 
-  select(kingdom, phylum, class, order, level, color)
-save(taxa_colours, file = "data/taxa_colours.RData")
-
 sunburstR_data <- sunburstR_data |>
   select(-color) |>
   left_join(taxa_colours, by = c("kingdom", "phylum", "class", "order", "level")) |>
@@ -237,3 +216,43 @@ sund2b(
   rootLabel = "RESET",
   breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
 )
+##### Yearly Diverging Barplot #####
+barplot_data <- occ_summary |>
+  group_by(year) |>
+  summarise(count = sum(count), .groups = "drop")
+
+###### Prep data for divergence ######
+div_barplot_data <- occ_summary |>
+  group_by(year, cs) |>
+  summarise(count = sum(count), .groups = "drop") |>
+  mutate(count = ifelse(cs == "Non-citizen Science", -1 * count, count))
+
+ggplot(div_barplot_data) +
+  geom_bar(aes(x = year, y = count, fill = cs), 
+           stat = "identity", position = "identity") +
+  scale_y_continuous(breaks = pretty(div_barplot_data$count),
+                     labels = label_number(
+                       accuracy = 0.1, 
+                       scale_cut = cut_short_scale())(abs(pretty(div_barplot_data$count))) %>%
+                       {gsub("\\.0", "", .)}) +
+  scale_fill_manual(values = c("#bebada", "#fccde5")) +
+  guides(fill = guide_legend(title = "Data Resource Type")) +
+  xlab("Year") +
+  ylab("Number of Occurrences") +
+  theme_classic()
+
+ggplot(barplot_data) +
+  geom_bar(aes(x = year, y = count), fill = "#bebada", 
+           stat = "identity", position = "identity") +
+  scale_y_continuous(breaks = pretty(c(0, barplot_data$count)),
+                     labels = label_number(
+                       accuracy = 0.1, 
+                       scale_cut = cut_short_scale())(pretty(c(0, barplot_data$count))) %>%
+                       {gsub("\\.0", "", .)}) +
+  xlab("Year") +
+  ylab("Number of Occurrences") +
+  theme_classic() +
+  theme(axis.line.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  geom_segment()
+
