@@ -7,11 +7,14 @@
 {
   library(arrow)
   library(janitor)
+  library(sf)
   library(stringr)
   library(tidyverse)
+  library(treemap)
 }
 
-##### Load Data #####
+##### Occurrence Data #####
+###### Load Data ######
 
 # Occurrence Data
 occ_data <- map(
@@ -20,7 +23,7 @@ occ_data <- map(
   list_rbind()
 
 # citizen-science classifications
-cs_datasets <- read_csv("raw-data/ALA-CS-datasets.csv")
+cs_datasets <- read_csv("raw-data/ALA-CS-datasets.csv", show_col_types = FALSE)
 
 cs_datasets <- cs_datasets %>%
   clean_names(.) %>%
@@ -53,6 +56,7 @@ occ_data <- occ_data |>
     cs_categories,
     by = "dataResourceName"
   ) |>
+  mutate(cs = replace_na(cs, "Non-citizen Science")) |>
   pivot_longer(
     cols = c("cl1048", "cl966"),
     names_to = "IBRAIMCRA_field",
@@ -67,4 +71,41 @@ occ_summary <- occ_data |>
   group_by(year, IBRAIMCRA_region, cs, kingdom, phylum, class, order) |>
   summarise(count = n(), .groups = "drop")
 
-save(occ_summary, file = "data/occ_summary.RData")  
+save(occ_summary, file = "data/occ_summary.RData")
+
+##### Regions Data #####
+###### Load + Process Data ######
+IBRA_regions <- st_read("raw-data/shapefiles/IBRA7_regions/ibra7_regions.shp") |>
+  st_make_valid() |>
+  st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>
+  select(REG_CODE_7, REG_NAME_7) |>
+  rename(region_code = REG_CODE_7, region_name = REG_NAME_7) |>
+  mutate(IBRA_IMCRA = "IBRA")
+IMCRA_mesoscale <- st_read("raw-data/shapefiles/IMCRA_mesoscale/imcra4_meso.shp") |>
+  st_make_valid() |>
+  st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>
+  select(MESO_ABBR, MESO_NAME) |>
+  rename(region_code = MESO_ABBR, region_name = MESO_NAME) |>
+  mutate(IBRA_IMCRA = "IMCRA")
+
+regions <- rbind(IBRA_regions, IMCRA_mesoscale) |>
+  st_as_sf(crs = st_crs(IBRA_regions))
+
+save(regions, file = "data/regions.RData")  
+
+##### Taxa Colour Data #####
+treemap_data <- (occ_summary |>
+                   group_by(kingdom, phylum, class, order) |>
+                   summarise(count = sum(count), .groups = "drop") |>
+                   treemap(
+                     index = c("kingdom", "phylum", "class", "order"),
+                     vSize = "count",
+                     draw = FALSE,
+                     palette = "Dark2"
+                   ))$tm |>
+  arrange(kingdom, phylum, class, order)
+
+taxa_colours <- treemap_data |> 
+  select(kingdom, phylum, class, order, level, color)
+
+save(taxa_colours, file = "data/taxa_colours.RData")
