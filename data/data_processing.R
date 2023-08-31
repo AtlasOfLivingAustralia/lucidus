@@ -10,6 +10,7 @@
   library(sf)
   library(stringr)
   library(tidyverse)
+  library(tools)
   library(treemap)
 }
 
@@ -71,7 +72,13 @@ occ_summary <- occ_data |>
   group_by(year, IBRAIMCRA_region, cs, kingdom, phylum, class, order) |>
   summarise(count = n(), .groups = "drop")
 
-save(occ_summary, file = "data/occ_summary.RData")
+save(occ_summary, file = "data/occ_summary.rds")
+
+
+##### 1900-2020 Data #####
+occ_summary <- read_csv("raw-data/occ_summary120.csv") |>
+  mutate(basisOfRecord = toTitleCase(tolower(gsub("_", " ", basisOfRecord))))
+save(occ_summary, file = "data/occ_summary120.rds")
 
 ##### Regions Data #####
 ###### Load + Process Data ######
@@ -91,7 +98,7 @@ IMCRA_mesoscale <- st_read("raw-data/shapefiles/IMCRA_mesoscale/imcra4_meso.shp"
 regions <- rbind(IBRA_regions, IMCRA_mesoscale) |>
   st_as_sf(crs = st_crs(IBRA_regions))
 
-save(regions, file = "data/regions.RData")  
+save(regions, file = "data/regions.rds")  
 
 ##### Taxa Colour Data #####
 treemap_data <- (occ_summary |>
@@ -108,4 +115,4 @@ treemap_data <- (occ_summary |>
 taxa_colours <- treemap_data |> 
   select(kingdom, phylum, class, order, level, color)
 
-save(taxa_colours, file = "data/taxa_colours.RData")
+save(taxa_colours, file = "data/taxa_colours.rds")
