@@ -14,8 +14,11 @@
   library(glue)
   library(highcharter)
   library(htmltools)
+  library(monochromeR)
   library(numform)
+  library(packcircles)
   library(plotly)
+  library(prismatic)
   library(RColorBrewer)
   library(scales)
   library(sf)
@@ -28,9 +31,9 @@
 ##### Load Data #####
 
 # occurrence data summarised
-load("data/occ_summary.RData")
-load("data/regions.RData")
-load("data/taxa_colours.RData")
+load("data/occ_summary120.rds")
+load("data/regions.rds")
+load("data/taxa_colours.rds")
 
 ##### Visualisations #####
 ###### MAP ######
@@ -174,11 +177,12 @@ sunburst_plotly <- plot_ly(
   parents = ~parent,
   values = ~count,
   branchvalues = "total",
-  maxdepth = 5,
+  maxdepth = 2,
   insidetextorientation = "radial",
   sort = FALSE,
   rotation = 90,
   hovertemplate = ~hovertemplate,
+  hoverlabel = list(align = "left"),
   marker = list(colors = ~color)
 ) |>
   layout(colorway = ~color)
@@ -235,6 +239,10 @@ ggplot(div_barplot_data) +
                        accuracy = 0.1, 
                        scale_cut = cut_short_scale())(abs(pretty(div_barplot_data$count))) %>%
                        {gsub("\\.0", "", .)}) +
+  scale_x_continuous(limits = c(min(div_barplot_data$year) - 1, 
+                                max(div_barplot_data$year) + 1),
+                     breaks = pretty(div_barplot_data$year, 
+                                     n = diff(range(div_barplot_data$year)) / 10)) +
   scale_fill_manual(values = c("#bebada", "#fccde5")) +
   guides(fill = guide_legend(title = "Data Resource Type")) +
   xlab("Year") +
@@ -248,11 +256,123 @@ ggplot(barplot_data) +
                      labels = label_number(
                        accuracy = 0.1, 
                        scale_cut = cut_short_scale())(pretty(c(0, barplot_data$count))) %>%
-                       {gsub("\\.0", "", .)}) +
+                       {gsub("\\.0", "", .)},
+                     expand = c(0, 0)) +
+  scale_x_continuous(limits = c(min(barplot_data$year) - 1, 
+                                max(barplot_data$year) + 1),
+                     breaks = pretty(barplot_data$year, 
+                                     n = diff(range(barplot_data$year)) / 10)) +
   xlab("Year") +
   ylab("Number of Occurrences") +
-  theme_classic() +
-  theme(axis.line.x = element_blank(),
-        axis.ticks.x = element_blank()) +
-  geom_segment()
+  theme_classic()
 
+###### Interactive Plots ######
+int_barplot <- ggplot(barplot_data) +
+  geom_bar_interactive(aes(x = year, y = count,
+                               tooltip = year, data_id = year),
+                           fill = "#bebada", 
+                           alpha = 0.9,
+                           stat = "identity", position = "identity") +
+      scale_y_continuous(breaks = pretty(c(0, barplot_data$count)),
+                         labels = label_number(
+                           accuracy = 0.1, 
+                           scale_cut = cut_short_scale())(pretty(c(0, barplot_data$count))) %>%
+                           {gsub("\\.0", "", .)},
+                         expand = c(0, 0)) +
+      scale_x_continuous(limits = c(min(barplot_data$year) - 1, 
+                                    max(barplot_data$year) + 1),
+                         breaks = pretty(barplot_data$year, 
+                                         n = diff(range(barplot_data$year)) / 10)) +
+      xlab("Year") +
+      ylab("Number of Occurrences") +
+      theme_classic()
+girafe(ggobj = int_barplot,
+       options = list(
+         opts_selection(css = "stroke-width:0.3;",
+                        type = "multiple",
+                        only_shiny = FALSE),
+         opts_selection_inv(css = "opacity:0.3;"),
+         opts_hover(css = "stroke-width:1;stroke:black"),
+         opts_toolbar(position = "top"),
+         opts_sizing(rescale = TRUE)
+       ))
+
+# Diverging interactivity
+int_div_barplot <- ggplot(div_barplot_data) +
+  geom_bar_interactive(aes(x = year, y = count, fill = cs,
+                           tooltip = year, data_id = year),
+                       alpha = 0.9,
+                       stat = "identity", position = "identity") +
+  scale_y_continuous(breaks = pretty(c(0, div_barplot_data$count)),
+                     labels = label_number(
+                       accuracy = 0.1, 
+                       scale_cut = cut_short_scale())(pretty(c(0, div_barplot_data$count))) %>%
+                       {gsub("\\.0", "", .)}) +
+  scale_x_continuous(limits = c(min(div_barplot_data$year) - 1, 
+                                max(div_barplot_data$year) + 1),
+                     breaks = pretty(div_barplot_data$year, 
+                                     n = diff(range(div_barplot_data$year)) / 10)) +
+  scale_fill_manual_interactive(name = "Data Resource",
+                                values = c("#bebada", "#fccde5"), 
+                                data_id = c("Citizen Science", "Non-citizen Science"),
+                                tooltip = c("Citizen Science", "Non-citizen Science")) +
+  xlab("Year") +
+  ylab("Number of Occurrences") +
+  theme_classic()
+girafe(ggobj = int_div_barplot,
+       options = list(
+         opts_selection(css = "stroke-width:0.3;",
+                        type = "multiple",
+                        only_shiny = FALSE),
+         opts_selection_inv(css = "opacity:0.3;"),
+         opts_hover(css = "stroke-width:1;stroke:black"),
+         opts_toolbar(position = "top"),
+         opts_sizing(rescale = TRUE)
+       ))
+
+
+##### Circular Packing plot #####
+circular_data <- occ_summary |>
+  group_by(basisOfRecord) |>
+  summarise(count = sum(count), .groups = "drop") |>
+  mutate(basisOfRecord_text = gsub(" ", "\n", basisOfRecord)) |>
+  arrange(desc(count)) |>
+  mutate(fill = generate_palette("#817E94", "go_lighter", n_colours = 10)[(10 - n() + 1):10],
+         colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"),
+         count_label = prettyNum(count, big.mark = ","))
+
+circular_text_data <- circular_data |>
+  cbind(circleProgressiveLayout(circular_data$count, sizetype = "area"))
+
+circular_plot_data <- circleLayoutVertices(
+  circular_text_data, npoints = 100, xysizecols = 7:9, idcol = 3
+) |>
+  left_join(circular_text_data |> select(basisOfRecord_text, count_label),
+            by = c("id" = "basisOfRecord_text"))
+
+int_circular_plot <- ggplot() + 
+  geom_polygon_interactive(data = circular_plot_data,
+                           aes(x = x, y = y, group = id, fill = id, 
+                               tooltip = sprintf("%s\n %s", id, count_label), 
+                               data_id = id), 
+                           colour = "white", alpha = 1) +
+  geom_text(data = circular_text_data,
+            aes(x = x, y = y, label = basisOfRecord_text, 
+                size = radius, colour = basisOfRecord_text)) +
+  scale_fill_manual(values = circular_text_data$fill) +
+  scale_colour_manual(values = circular_text_data$colour) +
+  scale_size(range = c(0,5)) +
+  theme_void() + 
+  theme(legend.position="none", plot.margin=unit(c(0,0,0,0),"cm") ) + 
+  coord_equal()
+girafe(ggobj = int_circular_plot,
+       options = list(
+         opts_selection(css = "stroke-width:0.3;",
+                        type = "multiple",
+                        only_shiny = FALSE),
+         opts_selection_inv(css = "opacity:0.3;"),
+         opts_hover(css = "stroke-width:1;stroke:black"),
+         opts_toolbar(position = "top"),
+         opts_zoom(max = 5),
+         opts_sizing(rescale = TRUE)
+       ))
