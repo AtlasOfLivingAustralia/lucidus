@@ -177,11 +177,12 @@ sunburst_plotly <- plot_ly(
   parents = ~parent,
   values = ~count,
   branchvalues = "total",
-  maxdepth = 5,
+  maxdepth = 2,
   insidetextorientation = "radial",
   sort = FALSE,
   rotation = 90,
   hovertemplate = ~hovertemplate,
+  hoverlabel = list(align = "left"),
   marker = list(colors = ~color)
 ) |>
   layout(colorway = ~color)
@@ -337,19 +338,23 @@ circular_data <- occ_summary |>
   mutate(basisOfRecord_text = gsub(" ", "\n", basisOfRecord)) |>
   arrange(desc(count)) |>
   mutate(fill = generate_palette("#817E94", "go_lighter", n_colours = 10)[(10 - n() + 1):10],
-         colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"))
+         colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"),
+         count_label = prettyNum(count, big.mark = ","))
 
 circular_text_data <- circular_data |>
   cbind(circleProgressiveLayout(circular_data$count, sizetype = "area"))
 
 circular_plot_data <- circleLayoutVertices(
-  circular_text_data, npoints = 100, xysizecols = 6:8, idcol = 3
-)
+  circular_text_data, npoints = 100, xysizecols = 7:9, idcol = 3
+) |>
+  left_join(circular_text_data |> select(basisOfRecord_text, count_label),
+            by = c("id" = "basisOfRecord_text"))
 
 int_circular_plot <- ggplot() + 
   geom_polygon_interactive(data = circular_plot_data,
                            aes(x = x, y = y, group = id, fill = id, 
-                               tooltip = id, data_id = id), 
+                               tooltip = sprintf("%s\n %s", id, count_label), 
+                               data_id = id), 
                            colour = "white", alpha = 1) +
   geom_text(data = circular_text_data,
             aes(x = x, y = y, label = basisOfRecord_text, 

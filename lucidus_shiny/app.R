@@ -212,7 +212,8 @@ server <- function(input, output, session) {
       group_by(IBRAIMCRA_region) |>
       summarise(count = sum(count), .groups = "drop") |>
       right_join(regions, by = c("IBRAIMCRA_region" = "region_name")) |>
-      st_as_sf(crs = st_crs(regions))
+      st_as_sf(crs = st_crs(regions)) |>
+      mutate(count_label = prettyNum(count, big.mark = ","))
   })
   
   # data for sunburstR sunburst
@@ -314,7 +315,8 @@ server <- function(input, output, session) {
     occ_summary_filtered_for_barplot() |>
       group_by(year, cs) |>
       summarise(count = sum(count), .groups = "drop") |>
-      mutate(count = ifelse(cs == "Non-citizen Science", -1 * count, count))
+      mutate(count = ifelse(cs == "Non-citizen Science", -1 * count, count),
+             count_label = prettyNum(count, big.mark = ","))
   })
   
   # data for packed circles
@@ -325,7 +327,8 @@ server <- function(input, output, session) {
       mutate(basisOfRecord_text = gsub(" ", "\n", basisOfRecord)) |>
       arrange(desc(count)) |>
       mutate(fill = generate_palette(current_colour(), "go_lighter", n_colours = 13)[1:n()],
-             colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"))
+             colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"),
+             count_label = prettyNum(count, big.mark = ","))
   })
   
   ###### Make plots ######
@@ -351,11 +354,13 @@ server <- function(input, output, session) {
       {if (max_IMCRA > 0) {
         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
                             aes(fill = count,
-                                tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                                tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
+                                data_id = IBRAIMCRA_region),
                             colour = "grey30")
          } else {
            geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
-                               aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                               aes(tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
+                                   data_id = IBRAIMCRA_region),
                                fill = "grey95", colour = "grey30")
         }} +
       {if (max_IMCRA > 0) {
@@ -378,11 +383,13 @@ server <- function(input, output, session) {
       {if (max_IBRA > 0) {
         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
                             aes(fill = count,
-                                tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                                tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
+                                data_id = IBRAIMCRA_region),
                             colour = "grey10")
        } else {
          geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
-                             aes(tooltip = IBRAIMCRA_region, data_id = IBRAIMCRA_region),
+                             aes(tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
+                                 data_id = IBRAIMCRA_region),
                              fill = "grey90", colour = "grey10")
       }} +
       {if (max_IBRA > 0) {
@@ -463,6 +470,7 @@ server <- function(input, output, session) {
       sort = FALSE,
       rotation = 90,
       hovertemplate = ~hovertemplate,
+      hoverlabel = list(align = "left"),
       marker = list(colors = ~color),
       source = "sunburst_source",
       customdata = ~id,
@@ -523,7 +531,8 @@ server <- function(input, output, session) {
     
     int_barplot <- ggplot(ggiraph_barplot_data_div) +
       geom_bar_interactive(aes(x = year, y = count, fill = cs,
-                               tooltip = year, data_id = year),
+                               tooltip = sprintf("%s\n %s", year, count_label), 
+                               data_id = year),
                            stat = "identity", position = "identity") +
       scale_fill_manual(name = "Data Resource",
                         values = barplot_fill_values) +
@@ -564,13 +573,16 @@ server <- function(input, output, session) {
       cbind(circleProgressiveLayout(ggiraph_circles_data$count, sizetype = "area"))
     
     circular_plot_data <- circleLayoutVertices(
-      circular_text_data, npoints = 100, xysizecols = 6:8, idcol = 3
-    )
+      circular_text_data, npoints = 100, xysizecols = 7:9, idcol = 3
+    ) |>
+      left_join(circular_text_data |> select(basisOfRecord_text, count_label),
+                by = c("id" = "basisOfRecord_text"))
     
     int_circular_plot <- ggplot() + 
       geom_polygon_interactive(data = circular_plot_data,
                                aes(x = x, y = y, group = id, fill = id, 
-                                   tooltip = id, data_id = id), 
+                                   tooltip = sprintf("%s\n %s", id, count_label), 
+                                   data_id = id), 
                                colour = "white", alpha = 1) +
       geom_text(data = circular_text_data,
                 aes(x = x, y = y, label = basisOfRecord_text, 
@@ -579,7 +591,10 @@ server <- function(input, output, session) {
       scale_colour_manual(values = circular_text_data$colour) +
       scale_size(range = c(0,5)) +
       theme_void() + 
-      theme(legend.position="none", plot.margin=unit(c(0,0,0,0),"cm") ) + 
+      theme(legend.position = "none", 
+            plot.margin = unit(c(0, 0, 0, 0), "cm"),
+            plot.background = element_rect(fill = NA, colour = NA),
+            panel.background = element_rect(fill = NA, colour = NA)) + 
       coord_equal()
     girafe(ggobj = int_circular_plot,
            options = list(

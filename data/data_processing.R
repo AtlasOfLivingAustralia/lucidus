@@ -101,6 +101,19 @@ regions <- rbind(IBRA_regions, IMCRA_mesoscale) |>
 save(regions, file = "data/regions.rds")  
 
 ##### Taxa Colour Data #####
+
+tree_palette <- 
+  c(
+    "#CC6677", # Animalia
+    "#882255", # Bacteria
+    "#AA4499", # Chromista
+    "#999933", # Eukaryota
+    "#DDCC77", # Fungi
+    "#117733", # Plantae
+    "#332288", # Protista
+    "#999933"  # Protozoa
+)
+
 treemap_data <- (occ_summary |>
                    group_by(kingdom, phylum, class, order) |>
                    summarise(count = sum(count), .groups = "drop") |>
@@ -108,7 +121,7 @@ treemap_data <- (occ_summary |>
                      index = c("kingdom", "phylum", "class", "order"),
                      vSize = "count",
                      draw = FALSE,
-                     palette = "Dark2"
+                     palette = tree_palette
                    ))$tm |>
   arrange(kingdom, phylum, class, order)
 
