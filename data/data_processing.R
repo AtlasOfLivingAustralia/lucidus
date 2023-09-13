@@ -82,6 +82,14 @@ save(occ_summary, file = "data/occ_summary120.rds")
 
 ##### Regions Data #####
 ###### Load + Process Data ######
+aus_outline <- st_read("raw-data/shapefiles/IBRA7_regions/ibra7_regions.shp") |>
+  st_make_valid() |>
+  st_union() |>
+  st_make_valid() |>
+  st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>
+  st_as_sf()
+save(aus_outline, file = "data/aus_outline.rds")  
+
 IBRA_regions <- st_read("raw-data/shapefiles/IBRA7_regions/ibra7_regions.shp") |>
   st_make_valid() |>
   st_simplify(preserveTopology = TRUE, dTolerance = 1000) |>

@@ -8,9 +8,6 @@
 #
 
 ##### Libraries #####
-library(crosstalk)
-library(d3r)
-library(d3treeR) #devtools::install_github("timelyportfolio/d3treeR")
 library(galah)
 library(ggiraph)
 library(ggnewscale)
@@ -33,6 +30,7 @@ library(treemap)
 
 ##### Load Data #####
 load("../data/occ_summary120.rds")
+load("../data/aus_outline.rds")
 load("../data/regions.rds")
 load("../data/taxa_colours.rds")
 
@@ -82,6 +80,17 @@ ui <- fluidPage(
         girafeOutput("ggiraph_circles", height = "450px", width = "100%")
       ),
       column(width = 1)
+    ),
+    fluidRow(
+      column(
+        width = 2,
+        actionButton("reset_bar_div", label = "Reset Year Selection")
+      ),
+      column(width = 8),
+      column(
+        width = 2,
+        actionButton("reset_circles", label = "Reset Basis Selection")
+      )
     )
   )
 )
@@ -213,7 +222,7 @@ server <- function(input, output, session) {
       summarise(count = sum(count), .groups = "drop") |>
       right_join(regions, by = c("IBRAIMCRA_region" = "region_name")) |>
       st_as_sf(crs = st_crs(regions)) |>
-      mutate(count_label = prettyNum(count, big.mark = ","))
+      mutate(count_label = ifelse(is.na(count), "0", prettyNum(count, big.mark = ",")))
   })
   
   # data for sunburstR sunburst
@@ -316,7 +325,7 @@ server <- function(input, output, session) {
       group_by(year, cs) |>
       summarise(count = sum(count), .groups = "drop") |>
       mutate(count = ifelse(cs == "Non-citizen Science", -1 * count, count),
-             count_label = prettyNum(count, big.mark = ","))
+             count_label = ifelse(is.na(count), "0", prettyNum(abs(count), big.mark = ",")))
   })
   
   # data for packed circles
@@ -328,7 +337,7 @@ server <- function(input, output, session) {
       arrange(desc(count)) |>
       mutate(fill = generate_palette(current_colour(), "go_lighter", n_colours = 13)[1:n()],
              colour = ifelse(clr_extract_luminance(fill) > 50, "black", "white"),
-             count_label = prettyNum(count, big.mark = ","))
+             count_label = ifelse(is.na(count), "0", prettyNum(count, big.mark = ",")))
   })
   
   ###### Make plots ######
@@ -336,81 +345,38 @@ server <- function(input, output, session) {
   output$ggiraph_map <- renderGirafe({
     ggiraph_map_data <- map_data()
     # IMCRA scale
-    IMCRA_counts <- ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA") |> pull(count)
-    max_IMCRA <- ifelse(all(is.na(IMCRA_counts)), 0, max(IMCRA_counts, na.rm = TRUE))
-    IMCRA_limit <- max(ceiling(max_IMCRA / 10^(nchar(max_IMCRA) - 1)) * 10^(nchar(max_IMCRA) - 1), 5)
-    IMCRA_scale <- seq(0, sqrt(IMCRA_limit), length.out = 6)^2
-    IMCRA_labels <- label_number(accuracy = 0.1, scale_cut = cut_short_scale())(IMCRA_scale) %>%
+    map_counts <- ggiraph_map_data |> pull(count)
+    max_counts <- ifelse(all(is.na(map_counts)), 0, max(map_counts, na.rm = TRUE))
+    counts_limit <- max(ceiling(max_counts / 10^(nchar(max_counts) - 1)) * 10^(nchar(max_counts) - 1), 5)
+    counts_scale <- seq(0, sqrt(counts_limit), length.out = 6)^2
+    counts_labels <- label_number(accuracy = 0.1, scale_cut = cut_short_scale())(counts_scale) %>%
                       {gsub("\\.0", "", .)}
-    # IBRA scale
-    IBRA_counts <- ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA") |> pull(count)
-    max_IBRA <- ifelse(all(is.na(IBRA_counts)), 0, max(IBRA_counts, na.rm = TRUE))
-    IBRA_limit <- max(ceiling(max_IBRA / 10^(nchar(max_IBRA) - 1)) * 10^(nchar(max_IBRA) - 1), 5)
-    IBRA_scale <- seq(0, sqrt(IBRA_limit), length.out = 6)^2
-    IBRA_labels <- label_number(accuracy = 0.1, scale_cut = cut_short_scale())(IBRA_scale) %>%
-                    {gsub("\\.0", "", .)}
     # plot
     int_map <- ggplot() +
-      {if (max_IMCRA > 0) {
-        geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
-                            aes(fill = count,
-                                tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
-                                data_id = IBRAIMCRA_region),
-                            colour = "grey30")
-         } else {
-           geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IMCRA"),
-                               aes(tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
-                                   data_id = IBRAIMCRA_region),
-                               fill = "grey95", colour = "grey30")
-        }} +
-      {if (max_IMCRA > 0) {
-        scale_fill_distiller(name = "IMCRA",
-                             type = "seq",
-                             palette = "Blues",
-                             na.value = "grey95",
-                             direction = 1,
-                             trans = "sqrt",
-                             limits = c(IMCRA_scale[1], IMCRA_scale[6]),
-                             breaks = IMCRA_scale,
-                             labels = IMCRA_labels,
-                             guide = guide_colorsteps(direction = "horizontal",
-                                                      label.position = "bottom",
-                                                      title.position = "top",
-                                                      order = 2))
-      }} +
-      # adds new colour scale
-      {if (max_IMCRA > 0 & max_IBRA > 0) ggnewscale::new_scale_fill()} +
-      {if (max_IBRA > 0) {
-        geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
-                            aes(fill = count,
-                                tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
-                                data_id = IBRAIMCRA_region),
-                            colour = "grey10")
-       } else {
-         geom_sf_interactive(data = ggiraph_map_data |> filter(IBRA_IMCRA == "IBRA"),
-                             aes(tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
-                                 data_id = IBRAIMCRA_region),
-                             fill = "grey90", colour = "grey10")
-      }} +
-      {if (max_IBRA > 0) {
-        scale_fill_distiller(name = "IBRA",
-                             type = "seq",
-                             palette = "Oranges",
-                             na.value = "grey90",
-                             direction = 1,
-                             trans = "sqrt",
-                             limits = c(IBRA_scale[1], IBRA_scale[6]),
-                             breaks = IBRA_scale,
-                             labels = IBRA_labels,
-                             guide = guide_colorsteps(direction = "horizontal",
-                                                      label.position = "bottom",
-                                                      title.position = "top",
-                                                      order = 1))
-      }} +
+      geom_sf_interactive(data = ggiraph_map_data,
+                          aes(fill = count,
+                              tooltip = sprintf("%s\n %s", IBRAIMCRA_region, count_label), 
+                              data_id = IBRAIMCRA_region),
+                          colour = "grey30") +
+      scale_fill_gradientn(name = "Counts",
+                           colours = generate_palette(current_colour(), "go_both_ways", 9)[1:8],
+                           na.value = "grey95",
+                           trans = "sqrt",
+                           limits = c(counts_scale[1], counts_scale[6]),
+                           breaks = counts_scale,
+                           labels = counts_labels,
+                           guide = guide_colorsteps(direction = "horizontal",
+                                                    label.position = "bottom")) +
+      geom_sf(data = aus_outline,
+              colour = alpha("grey30", 
+                             ifelse(is.null(map_selected()), 1, 0.3)), 
+              fill = NA, 
+              linewidth = 0.3) +
       coord_sf(xlim = c(110, 155), ylim = c(-45, -10)) +
       theme_void() +
       theme(legend.box = "vertical",
             legend.position = c(0.3, 0.175),
+            legend.title = element_blank(),
             legend.key.width = unit(12, "mm"),
             legend.key.height = unit(3, "mm"),
             legend.background = element_rect(fill = "transparent", colour = NA),
@@ -531,7 +497,7 @@ server <- function(input, output, session) {
     
     int_barplot <- ggplot(ggiraph_barplot_data_div) +
       geom_bar_interactive(aes(x = year, y = count, fill = cs,
-                               tooltip = sprintf("%s\n %s", year, count_label), 
+                               tooltip = glue("{year} {cs} \n {count_label}"), 
                                data_id = year),
                            stat = "identity", position = "identity") +
       scale_fill_manual(name = "Data Resource",
@@ -541,8 +507,9 @@ server <- function(input, output, session) {
                            accuracy = 0.1, 
                            scale_cut = cut_short_scale())(abs(pretty(c(0, ggiraph_barplot_data_div$count)))) %>%
                            {gsub("\\.0", "", .)}) +
-      scale_x_continuous(limits = c(min(ggiraph_barplot_data_div$year) - 1, 
-                                    max(ggiraph_barplot_data_div$year) + 1),
+      scale_x_continuous(# limits = c(min(ggiraph_barplot_data_div$year) - 1, 
+                         #            max(ggiraph_barplot_data_div$year) + 1),
+                         limits = c(1899.5, 2020.5),
                          breaks = pretty(ggiraph_barplot_data_div$year, 
                                          n = diff(range(ggiraph_barplot_data_div$year)) / 10)) +
       xlab("Year") +
@@ -622,10 +589,14 @@ server <- function(input, output, session) {
   
   # reactivity for ggiraph map
   map_selected <- reactive({
-    input$ggiraph_map_selected
+    if (map_reset_status()) {
+      NULL
+    } else {
+      input$ggiraph_map_selected
+    }
   })
   
-   # reactivity for plotly sunburst
+  # reactivity for plotly sunburst
   sunburst_click <- reactive({
     unlist(event_data(event = "plotly_sunburstclick", source = "sunburst_source", priority = "event"))[3]
   })
@@ -666,6 +637,18 @@ server <- function(input, output, session) {
   circles_selected <- reactive({
     input$ggiraph_circles_selected
   })
+  
+  ###### Reset Buttons ######
+  # reset map
+  map_reset_status <- reactiveVal(FALSE)
+  # observeEvent(input$reset_map, {
+  #   map_reset_status(TRUE)
+  # })
+  # reset sunburst
+  
+  # reset barplot_div
+  
+  # reset packed circles
 }
 
 # Run the application
