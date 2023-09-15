@@ -8,15 +8,11 @@
 #
 
 ##### Libraries #####
-library(galah)
 library(ggiraph)
-library(ggnewscale)
 library(ggthemes)
 library(glue)
-library(highcharter)
 library(htmltools)
 library(monochromeR)
-library(numform)
 library(packcircles)
 library(plotly)
 library(prismatic)
@@ -24,7 +20,7 @@ library(RColorBrewer)
 library(scales)
 library(sf)
 library(shiny)
-library(sunburstR)
+library(shinydashboard)
 library(tidyverse)
 library(treemap)
 
@@ -55,9 +51,16 @@ ui <- fluidPage(
     # Sidebar with a slider input for number of bins
     fluidRow(
       #style = "height:90vh",
-      column(width = 1),
       column(
-        width = 6,
+        width = 2,
+        box(
+          title = h5(strong("SELECTED REGIONS")),
+          style = "width:250px;height:600px;overflow-y:auto;",
+          htmlOutput("text_map")
+        )
+      ),
+      column(
+        width = 5,
         girafeOutput("ggiraph_map", height = "700px")
       ),
 
@@ -225,24 +228,6 @@ server <- function(input, output, session) {
       mutate(count_label = ifelse(is.na(count), "0", prettyNum(count, big.mark = ",")))
   })
   
-  # data for sunburstR sunburst
-  {
-    # sunburstR_data <- 
-    #   (occ_summary |>
-    #      group_by(kingdom, phylum, class, order) |>
-    #      summarise(count = sum(count), .groups = "drop") |>
-    #      treemap(
-    #        index = c("kingdom", "phylum", "class", "order"),
-    #        vSize = "count",
-    #        draw = FALSE,
-    #        palette = "Dark2"
-    #      )
-    #   )$tm |>
-    #   select(-color) |>
-    #   left_join(taxa_colours, by = c("kingdom", "phylum", "class", "order", "level")) |>
-    #   arrange(kingdom, phylum, class, order) |>
-    #   d3_nest(value_cols = c("vSize", "vColor", "stdErr", "vColorValue", "level", "x0","y0", "w", "h", "color"))
-  }
   # data for plotly sunburst
   sunburstplotly_data <- reactive({
     tree_data <- occ_summary_filtered_for_sunburst() |>
@@ -394,33 +379,7 @@ server <- function(input, output, session) {
              opts_toolbar(position = "topleft", hidden = c("zoom_rect"))
            ))
   })
-
-  # make sunburstR sunburst
-  {
-    # output$sunburstR <- renderSund2b({
-    #   add_shiny(
-    #     sund2b(
-    #       sunburstR_data,
-    #       colors = htmlwidgets::JS(
-    #         "function(name, d){return d.color || '#ccc';}"
-    #       ),
-    #       valueField = "vSize",
-    #       showLabels = TRUE,
-    #       rootLabel = "RESET",
-    #       breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
-    #     )
-    #   )
-    # })
-    # 
-    # #sunburst click event
-    # sunburstR_selection <- reactive({
-    #   input$sunburstR_click
-    # })
-    # latestClick <- reactiveVal()
-    # observeEvent(input$sunburstR_click, {
-    #   latestClick(input$sunburstR_click)
-    # })
-  }
+  
   # make plotly sunburst
   output$sunburstplotly <- renderPlotly({
     plot_ly(
@@ -556,7 +515,9 @@ server <- function(input, output, session) {
                     size = radius, colour = basisOfRecord_text)) +
       scale_fill_manual(values = circular_text_data$fill) +
       scale_colour_manual(values = circular_text_data$colour) +
-      scale_size(range = c(0,5)) +
+      scale_size(range = c(min(circular_text_data$radius), 
+                           max(circular_text_data$radius)) * 
+                         (6 / max(circular_text_data$radius))) +
       theme_void() + 
       theme(legend.position = "none", 
             plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -649,6 +610,15 @@ server <- function(input, output, session) {
   # reset barplot_div
   
   # reset packed circles
+  
+  ###### Text Output ######
+  # text for map
+  output$text_map <- renderUI({
+    c(
+      paste(sort(map_selected()), collapse = "<br>")
+    ) |>
+      HTML()
+  })
 }
 
 # Run the application
