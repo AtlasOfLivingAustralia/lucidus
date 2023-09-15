@@ -1,5 +1,5 @@
 ##### Description #####
-# The function of this script is to clean the initial dataset of 2001-05 
+# The purpose of this script is to clean the initial dataset of 1900-2020
 # records into a tibble that can be used with shiny to produce the intended
 # visualisations.
 
@@ -48,32 +48,31 @@ cs_categories <- cs_datasets %>%
 rm(cs_datasets)
 
 ##### Process Data #####
-# TO DO:
-#   Join (and duplicate IBRA/IMCRA)
-#   Join Citizen/Non-CS
-
 occ_data <- occ_data |> 
   left_join(
     cs_categories,
     by = "dataResourceName"
   ) |>
+  # Anything without a Cs/NCS classification is denoted as NCS
   mutate(cs = replace_na(cs, "Non-citizen Science")) |>
+  # Turn IBRA and IMCRA into one column 
   pivot_longer(
     cols = c("cl1048", "cl966"),
     names_to = "IBRAIMCRA_field",
     values_to = "IBRAIMCRA_region",
     values_drop_na = TRUE
   ) |> 
+  # Pilbara regions named incorrectly
   mutate(IBRAIMCRA_region = str_replace(string = IBRAIMCRA_region, 
                                         pattern = "Pilbarra",
                                         replacement = "Pilbara"))
 
+# Summarise and save records by key factors
 occ_summary <- occ_data |>
   group_by(year, IBRAIMCRA_region, cs, kingdom, phylum, class, order) |>
   summarise(count = n(), .groups = "drop")
 
 save(occ_summary, file = "data/occ_summary.rds")
-
 
 ##### 1900-2020 Data #####
 occ_summary <- read_csv("raw-data/occ_summary120.csv") |>
@@ -82,6 +81,7 @@ save(occ_summary, file = "data/occ_summary120.rds")
 
 ##### Regions Data #####
 ###### Load + Process Data ######
+# Create an outline of Australia from IBRA regions
 aus_outline <- st_read("raw-data/shapefiles/IBRA7_regions/ibra7_regions.shp") |>
   st_make_valid() |>
   st_union() |>
@@ -110,6 +110,7 @@ save(regions, file = "data/regions.rds")
 
 ##### Taxa Colour Data #####
 
+# Create colour palette
 tree_palette <- 
   c(
     "#CC6677", # Animalia
