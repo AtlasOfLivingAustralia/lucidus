@@ -4,26 +4,18 @@
 
 ##### Libraries #####
 {
-  library(crosstalk)
-  library(d3r)
-  library(d3treeR) #devtools::install_github("timelyportfolio/d3treeR")
-  library(galah)
   library(ggiraph)
   library(ggnewscale)
   library(ggthemes)
   library(glue)
-  library(highcharter)
   library(htmltools)
   library(monochromeR)
-  library(numform)
   library(packcircles)
   library(plotly)
   library(prismatic)
   library(RColorBrewer)
   library(scales)
   library(sf)
-  library(shiny)
-  library(sunburstR)
   library(tidyverse)
   library(treemap)
 }
@@ -187,39 +179,6 @@ sunburst_plotly <- plot_ly(
 ) |>
   layout(colorway = ~color)
 
-###### d2b SUNBURST ######
-sunburstR_data1 <- tree_data |>
-  mutate(categories = paste(kingdom, phylum, class, order, sep = "-")) |>
-  select(categories, count) |>
-  as.data.frame()
-
-sunburstR_data <- (occ_summary |>
-    group_by(kingdom, phylum, class, order) |>
-    summarise(count = sum(count), .groups = "drop") |>
-    treemap(
-      index = c("kingdom", "phylum", "class", "order"),
-      vSize = "count",
-      draw = FALSE,
-      palette = "Dark2"
-    ))$tm |>
-  arrange(kingdom, phylum, class, order)
-
-sunburstR_data <- sunburstR_data |>
-  select(-color) |>
-  left_join(taxa_colours, by = c("kingdom", "phylum", "class", "order", "level")) |>
-  d3_nest(value_cols = c("vSize", "vColor", "stdErr", "vColorValue", "level", "x0","y0", "w", "h", "color"))
-
-sund2b(
-  sunburstR_data,
-  colors = sunburstR_data1$color,
-  # colors = htmlwidgets::JS(
-  #   "function(name, d){return d.color || '#ccc';}"
-  # ),
-  valueField = "vSize",
-  showLabels = TRUE,
-  rootLabel = "RESET",
-  breadcrumbs = sund2bBreadcrumb(enabled = FALSE),
-)
 ##### Yearly Diverging Barplot #####
 barplot_data <- occ_summary |>
   group_by(year) |>
@@ -361,7 +320,9 @@ int_circular_plot <- ggplot() +
                 size = radius, colour = basisOfRecord_text)) +
   scale_fill_manual(values = circular_text_data$fill) +
   scale_colour_manual(values = circular_text_data$colour) +
-  scale_size(range = c(0,5)) +
+  scale_size(range = c(min(circular_text_data$radius), 
+                       max(circular_text_data$radius)) * 
+                      (6 / max(circular_text_data$radius))) +
   theme_void() + 
   theme(legend.position="none", plot.margin=unit(c(0,0,0,0),"cm") ) + 
   coord_equal()
