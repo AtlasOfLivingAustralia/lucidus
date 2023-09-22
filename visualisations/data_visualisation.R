@@ -10,6 +10,7 @@
   library(glue)
   library(htmltools)
   library(monochromeR)
+  library(numform)
   library(packcircles)
   library(plotly)
   library(prismatic)
