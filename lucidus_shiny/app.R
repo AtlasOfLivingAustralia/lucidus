@@ -49,46 +49,62 @@ ui <- fluidPage(
       useShinyjs(),
       column(
         width = 2,
-        actionButton("reset_map", label = "Reset Map Selection")
+        column(
+          width = 2,
+          div(
+            fa_html_dependency(),
+            tags$span(
+              tags$i(
+                id = "info-circle-map",
+                class = "fas fa-info-circle fa-2x",
+                style = paste0("color:", base_colour)
+              )
+            ),
+            style = "padding: 10px"
+          ),
+          bsTooltip(
+            id = "info-circle-map",
+            title = HTML(paste0(
+              "Hello this is a message :)"
+            )),
+            placement = "bottom",
+            trigger = "hover")
+        ),
+        column(
+          width = 6,
+          actionButton("reset_map", label = "Reset Map Selection"),
+        ),
+        column(width = 4),
       ),
-      column(width = 1,
-             div(
-               fa_html_dependency(),
-               uiOutput("map_info"),
-               style = "padding: 10px"
-             ),
-             bsTooltip(
-               id = "info-circle-map",
-               title = HTML(paste0(
-                 "Hello this is a message :)"
-               )),
-               placement = "bottom",
-               trigger = "click")
-      ),
-      column(width = 6),
-      column(width = 1,
-             div(
-               fa_html_dependency(),
-               tags$span(
-                 tags$i(
-                   id = "info-circle-sunburst",
-                   class = "fas fa-info-circle fa-2x",
-                   style = paste0("color:", base_colour)
-                 )
-               ),
-               style = "padding: 10px"
-             ),
-             bsTooltip(
-               id = "info-circle-sunburst",
-               title = HTML(paste0(
-                 "Hello this is a message :)"
-               )),
-               placement = "bottom",
-               trigger = "hover")
-      ),
+      column(width = 8),
       column(
         width = 2,
-        actionButton("reset_sunburst", label = "Reset Taxa Selection")
+        column(width = 4),
+        column(
+          width = 6,
+          actionButton("reset_sunburst", label = "Reset Taxa Selection"),
+        ),
+        column(
+          width = 2,
+          div(
+            fa_html_dependency(),
+            tags$span(
+              tags$i(
+                id = "info-circle-sunburst",
+                class = "fas fa-info-circle fa-2x",
+                style = paste0("color:", base_colour)
+              )
+            ),
+            style = "padding: 10px"
+          ),
+          bsTooltip(
+            id = "info-circle-sunburst",
+            title = HTML(paste0(
+              "Hello this is a message :)"
+            )),
+            placement = "bottom",
+            trigger = "hover")
+        )
       )
     ),
     # Sidebar with a slider input for number of bins
