@@ -8,6 +8,9 @@
 #
 
 ##### Libraries #####
+library(bslib)
+library(bsplus)
+library(fontawesome)
 library(ggiraph)
 library(ggthemes)
 library(glue)
@@ -21,7 +24,9 @@ library(RColorBrewer)
 library(scales)
 library(sf)
 library(shiny)
+library(shinyBS)
 library(shinydashboard)
+library(shinyjs)
 library(tidyverse)
 library(treemap)
 
@@ -31,6 +36,8 @@ load("../data/aus_outline.rds")
 load("../data/regions.rds")
 load("../data/taxa_colours.rds")
 
+base_colour <- "#817E94"
+
 ##### shiny App #####
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -39,11 +46,46 @@ ui <- fluidPage(
   column(
     width = 12,
     fluidRow(
+      useShinyjs(),
       column(
         width = 2,
         actionButton("reset_map", label = "Reset Map Selection")
       ),
-      column(width = 8),
+      column(width = 1,
+             div(
+               fa_html_dependency(),
+               uiOutput("map_info"),
+               style = "padding: 10px"
+             ),
+             bsTooltip(
+               id = "info-circle-map",
+               title = HTML(paste0(
+                 "Hello this is a message :)"
+               )),
+               placement = "bottom",
+               trigger = "click")
+      ),
+      column(width = 6),
+      column(width = 1,
+             div(
+               fa_html_dependency(),
+               tags$span(
+                 tags$i(
+                   id = "info-circle-sunburst",
+                   class = "fas fa-info-circle fa-2x",
+                   style = paste0("color:", base_colour)
+                 )
+               ),
+               style = "padding: 10px"
+             ),
+             bsTooltip(
+               id = "info-circle-sunburst",
+               title = HTML(paste0(
+                 "Hello this is a message :)"
+               )),
+               placement = "bottom",
+               trigger = "hover")
+      ),
       column(
         width = 2,
         actionButton("reset_sunburst", label = "Reset Taxa Selection")
@@ -546,7 +588,7 @@ server <- function(input, output, session) {
       filter(id == current_level()) |> 
       pull(color)
     
-    ifelse(plot_colour == "#FFFFFF", "#817E94", plot_colour)
+    ifelse(plot_colour == "#FFFFFF", base_colour, plot_colour)
   })
   
   # reactivity for ggiraph map
@@ -619,6 +661,17 @@ server <- function(input, output, session) {
       paste(sort(map_selected()), collapse = "<br>")
     ) |>
       HTML()
+  })
+  
+  ###### Information boxes ######
+  output$map_info <- renderUI({
+    tags$span(
+      tags$i(
+        id = "info-circle-map",
+        class = "fas fa-info-circle fa-2x",
+        style = paste0("color:", current_colour())
+      )
+    )
   })
 }
 
