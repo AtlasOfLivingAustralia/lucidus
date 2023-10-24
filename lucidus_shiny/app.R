@@ -49,6 +49,11 @@ ui <- fluidPage(
       useShinyjs(),
       column(
         width = 2,
+        tags$style(
+          HTML(
+            ".tooltip {width: 250px;}"
+          )
+        ),
         column(
           width = 2,
           div(
@@ -60,12 +65,12 @@ ui <- fluidPage(
                 style = paste0("color:", base_colour)
               )
             ),
-            style = "padding: 10px"
+            style = "padding: 3px"
           ),
           bsTooltip(
             id = "info-circle-map",
             title = HTML(paste0(
-              "Hello this is a message :)"
+              "Click on a coloured IMCRA/IBRA region on the map to select it and filter all data down to records that occurred in that region. Click on a region again to deselect it. You may select multiple regions (toggling one at a time) or use the lasso select/deselect options to select many at once."
             )),
             placement = "bottom",
             trigger = "hover")
@@ -95,12 +100,12 @@ ui <- fluidPage(
                 style = paste0("color:", base_colour)
               )
             ),
-            style = "padding: 10px"
+            style = "padding: 3px"
           ),
           bsTooltip(
             id = "info-circle-sunburst",
             title = HTML(paste0(
-              "Hello this is a message :)"
+              "Click on a coloured taxonomic group to filter all data down to records of that taxa. The next taxonomic group will then appear and clicking again will dig further. To move back up a level, click the centre circle of the plot. The lowest level is Order."
             )),
             placement = "bottom",
             trigger = "hover")
@@ -122,15 +127,13 @@ ui <- fluidPage(
         width = 5,
         girafeOutput("ggiraph_map", height = "700px")
       ),
-
       column(
         width = 4,
         plotlyOutput("sunburstplotly", height = "700px")
-        #sund2bOutput("sunburstR", height = "700px")
       ),
       column(width = 1)
     ),
-    # Barplot and circle plot (?)
+    # Barplot and circle plot
     fluidRow(
       column(width = 1),
       column(
@@ -143,15 +146,74 @@ ui <- fluidPage(
       ),
       column(width = 1)
     ),
-    fluidRow(
-      column(
-        width = 2,
-        actionButton("reset_bar_div", label = "Reset Year Selection")
-      ),
-      column(width = 8),
-      column(
-        width = 2,
-        actionButton("reset_circles", label = "Reset Basis Selection")
+    column(
+      width = 12,
+      fluidRow(
+        useShinyjs(),
+        column(
+          width = 2,
+          tags$style(
+            HTML(
+              ".tooltip {width: 250px;}"
+            )
+          ),
+          column(
+            width = 2,
+            div(
+              fa_html_dependency(),
+              tags$span(
+                tags$i(
+                  id = "info-circle-barplot",
+                  class = "fas fa-info-circle fa-2x",
+                  style = paste0("color:", base_colour)
+                )
+              ),
+              style = "padding: 3px"
+            ),
+            bsTooltip(
+              id = "info-circle-barplot",
+              title = HTML(paste0(
+                "Click on a coloured bar to select that year and filter all data down to records that occurred in that year. Click on a bar again to deselect it. You may select multiple years (toggling one at a time) or use the lasso select/deselect options to select many at once. The split of Non-citizen Science (light) vs Citizen Science (dark) records is shown for each year."
+              )),
+              placement = "top",
+              trigger = "hover")
+          ),
+          column(
+            width = 6,
+            actionButton("reset_barplot", label = "Reset Year Selection"),
+          ),
+          column(width = 4),
+        ),
+        column(width = 8),
+        column(
+          width = 2,
+          column(width = 4),
+          column(
+            width = 6,
+            actionButton("reset_basis", label = "Reset Basis Selection"),
+          ),
+          column(
+            width = 2,
+            div(
+              fa_html_dependency(),
+              tags$span(
+                tags$i(
+                  id = "info-circle-circles",
+                  class = "fas fa-info-circle fa-2x",
+                  style = paste0("color:", base_colour)
+                )
+              ),
+              style = "padding: 3px"
+            ),
+            bsTooltip(
+              id = "info-circle-circles",
+              title = HTML(paste0(
+                "Click on a coloured circled to select that Basis of Record and filter all data down to records of that type. Click on a circle again to deselect it. You may select multiple bases (toggling one at a time) or use the lasso select/deselect options to select many at once."
+              )),
+              placement = "top",
+              trigger = "hover")
+          )
+        )
       )
     )
   )
